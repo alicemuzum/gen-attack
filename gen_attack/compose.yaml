@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  gen_attack:
+    image: gen_attack_image_cpu
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/gen_attack
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      - PATH=/root/.local/bin:$PATH
+    command: bash
+    tty: true
+
+  gen_attack_gpu:
+    image: gen_attack_image
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    volumes:
+      - .:/gen_attack
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      - PATH=/root/.local/bin:$PATH
+    runtime: nvidia
+    command: bash
+    tty: true
