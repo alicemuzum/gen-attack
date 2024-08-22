@@ -1,4 +1,4 @@
-# **Gen-Attack: Adversarial Attack and Image Generation Framework**
+# **Gen-Attack: Adversarial Attack Benchmarking Across Generative Models and More**
 
 ## **Overview**
 
