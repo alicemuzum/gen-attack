@@ -14,8 +14,8 @@ class FGSM:
     @staticmethod
     def fgsm_attack(image, epsilon):
         image_grad = image.grad
-        sign_data_grad = image_grad.sign()
-        perturbed_image = image + epsilon * sign_data_grad
+        image_grad_sign = image_grad.sign()
+        perturbed_image = image + epsilon * image_grad_sign
         return torch.clamp(perturbed_image, 0, 1)
 
     def evaluate(self, images, labels, epsilons):
