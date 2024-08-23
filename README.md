@@ -27,12 +27,6 @@ This project aims a framework for implementing and evaluating adversarial attack
 ### **Adversarial Attacks**
 Use the provided scripts in the adversarial_attacks directory to execute and analyze adversarial attacks on various models. Modify the parameters in the scripts to adapt the attack strength and target models.
 
-### **Image Generation**
-Explore different image generation techniques using the scripts in the image-generation directory. The provided Jupyter notebooks offer step-by-step guidance.
-
-### **Benchmarking**
-Utilize the benchmarking scripts to compare model performance before and after adversarial attacks. The results can be visualized using the visualize.py script.
-
 ## **License**
 This project is licensed under the MIT License. See the LICENSE file for more details.
 
