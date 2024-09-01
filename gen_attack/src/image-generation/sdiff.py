@@ -12,7 +12,7 @@ class SDIFF():
     def __call__(self, prompt):
         
         image = self.model(prompt).images[0]
-        image.save("examp.png")
+        image.save("crosswalk.png")
 
 a = SDIFF()
-a("a corner of a realistic bench")
+a("a crosswalk on a street. realistic. ")

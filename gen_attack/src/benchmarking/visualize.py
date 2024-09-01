@@ -10,7 +10,6 @@ def visualize_images(images, true_labels, predicted_labels, class_names=None):
     - images (torch.Tensor): A batch of images (Tensor of shape [batch_size, channels, height, width]).
     - true_labels (torch.Tensor): True labels of the images (Tensor of shape [batch_size]).
     - predicted_labels (torch.Tensor): Predicted labels of the images (Tensor of shape [batch_size]).
-    - num_images (int, optional): Number of images to display. Default is 16.
     - class_names (list, optional): List of class names corresponding to label indices. Default is None.
     """
     # Ensure the number of images doesn't exceed the batch size
