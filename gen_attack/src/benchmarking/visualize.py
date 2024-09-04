@@ -2,12 +2,15 @@ import matplotlib.pyplot as plt
 import torch
 import math
 from PIL import Image 
+import os
+PATH = "/home/acuzum/samproject/gen-attack/gen_attack/src/benchmarking/results"
 
 class Visualize():
     def __init__(self) -> None:
         pass
     
-    def _build_figure(self,num_images):
+    @staticmethod
+    def _build_figure(num_images):
         
         # Calculate the grid size
         grid_size = math.ceil(num_images ** 0.5)
@@ -18,7 +21,8 @@ class Visualize():
 
         return fig, axes, grid_size
     
-    def visualize_resnet(self, images, true_labels, predicted_labels, class_names=None):
+    @staticmethod
+    def visualize_resnet(images, true_labels, predicted_labels, accuracy, class_names=None):
         """
         Visualizes a given set of images with their true and predicted labels for resnet.
 
@@ -29,9 +33,8 @@ class Visualize():
         - class_names (list, optional): List of class names corresponding to label indices. Default is None.
         """
         num_images = len(images)
-        fig, axes, grid_size = self._build_figure(num_images)
+        fig, axes, grid_size = Visualize._build_figure(num_images)
         
-
         for i in range(num_images):
             # Get the image, true label, and predicted label
             img = images[i].permute(1, 2, 0).cpu().detach().numpy()  # Convert from CHW to HWC
@@ -52,9 +55,14 @@ class Visualize():
             ax.set_title(f'True: {true_label_name}\nPred: {predicted_label_name}')
             ax.axis('off')
 
-        plt.show()
+        plt.savefig(os.path.join(PATH, "resnet_results_images.jpg"))
 
-    def visualize_detr(self, images, scores, pred_labels, boxes):
+        plt.figure(2)
+        plt.plot(accuracy.keys(),accuracy.values())
+        plt.savefig(os.path.join(PATH, "resnet_results_accuracy.jpg"))
+
+    @staticmethod
+    def visualize_detr(images, scores, pred_labels, boxes):
         """
         Visualizes images for detr model.
 
@@ -83,6 +91,6 @@ class Visualize():
                     bbox=dict(facecolor='yellow', alpha=0.5))
             
         plt.axis('off')
-        plt.show()
+        plt.savefig(os.path.join(PATH, "detr_results.jpg"))
 
 
