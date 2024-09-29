@@ -83,7 +83,7 @@ class Visualize():
         
         
         for p, label, (xmin, ymin, xmax, ymax) in zip(scores, pred_labels, boxes):
-            text = label + " " + str(round(p,2))
+            text = label + " " + str(round(p.item(),2))
             ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
                                     fill=False, linewidth=3, color = (1, 0, 0)))
 

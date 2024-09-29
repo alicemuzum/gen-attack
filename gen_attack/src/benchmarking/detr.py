@@ -11,6 +11,8 @@ sys.path.insert(1, '/home/acuzum/samproject/gen-attack/gen_attack/src/adversaria
 from visualize import Visualize
 from fgsm import FGSM
 
+from visualize import Visualize
+
 class DETR():
 
 
@@ -44,7 +46,7 @@ class DETR():
         pixel_values = inputs["pixel_values"].to(self.device)
         pixel_values.requires_grad = True
 
-        outputs = self._forward(loss=True, pixel_values = pixel_values, pixel_mask = pixel_mask, labels = labels)
+        outputs = self._forward(pixel_values = pixel_values, pixel_mask = pixel_mask, labels = labels)
         self._evaluate(outputs)
 
         epsilon = 0.03
@@ -57,16 +59,15 @@ class DETR():
         self._evaluate(outputs_)
 
         
-    def _forward(self, loss=False, **inputs):
+    def _forward(self, **inputs):
 
         if "labels" not in inputs.keys():
-            outputs = self.model(inputs["pixel_values"], inputs["pixel_mask"]) 
+            outputs = self.model(inputs["pixel_values"], inputs["pixel_mask"])
         else:
             outputs = self.model(inputs["pixel_values"], inputs["pixel_mask"], labels=inputs["labels"])
-
-        if loss:
             self.model.zero_grad()
-            outputs.loss.backward()
+            outputs.loss.backward() 
+            
 
         return outputs
 
@@ -75,14 +76,20 @@ class DETR():
         
         target_sizes = torch.tensor([self.image.size[::-1]])
         results = self.processor.post_process_object_detection(outputs, threshold=0.9, target_sizes=target_sizes)[0]
+        labels = [self.model.config.id2label[label.item()] for label in results["labels"]]
 
-        for score, label, box in zip(results["scores"], results["labels"], results["boxes"]):
+        for score, label, box in zip(results["scores"], labels, results["boxes"]):
 
             box = [round(i, 2) for i in box.tolist()]
             print(
-                f"Detected {self.model.config.id2label[label.item()]} with confidence "
+                f"Detected {label} with confidence "
                 f"{round(score.item(), 3)} at location {box}"
             )
+        
+        Visualize.visualize_detr(self.image,results["scores"], labels, results["boxes"].detach().cpu())
+        
+    
+    
 
 
 if __name__ == "__main__":
