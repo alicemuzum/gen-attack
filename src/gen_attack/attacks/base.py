@@ -1,4 +1,4 @@
-"""Common interface for gradient-based adversarial attacks."""
+"""Common interface for adversarial attacks."""
 
 from __future__ import annotations
 
@@ -8,14 +8,17 @@ from typing import Callable
 import torch
 
 LossFn = Callable[[torch.Tensor], torch.Tensor]
-"""Maps a batch of images in [0, 1] to a scalar loss that the attack maximises."""
+"""Maps a batch of ``B`` images in [0, 1] to per-example losses of shape ``[B]``, which the attack maximises.
+
+A scalar is also accepted when the batch holds a single image.
+"""
 
 
 class Attack(ABC):
     """An L-infinity bounded, untargeted evasion attack.
 
     Attacks are model-agnostic: instead of a model they receive a loss function
-    that maps images to a scalar. This lets the same attack run against an
+    that maps images to per-example losses. This lets the same attack run against an
     image classifier (cross-entropy) and an object detector (DETR's set loss).
 
     Args:
@@ -50,6 +53,6 @@ class Attack(ABC):
     def _loss_gradient(images: torch.Tensor, loss_fn: LossFn) -> torch.Tensor:
         """Gradient of ``loss_fn`` with respect to ``images``."""
         images = images.detach().clone().requires_grad_(True)
-        loss = loss_fn(images)
+        loss = loss_fn(images).sum()
         (grad,) = torch.autograd.grad(loss, images)
         return grad

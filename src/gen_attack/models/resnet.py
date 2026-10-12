@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision
@@ -48,6 +49,16 @@ class RobustnessCurve:
     accuracies: list[float]
 
 
+@dataclass
+class QueryCurve:
+    """Accuracy of a black-box attack as a function of the number of queries per image."""
+
+    attack: str
+    epsilon: float
+    queries: list[int]
+    accuracies: list[float]
+
+
 class ResNetBenchmark:
     """Measures how the accuracy of a pretrained ResNet-18 degrades under attack.
 
@@ -74,7 +85,7 @@ class ResNetBenchmark:
         return images.to(self.device), labels.to(self.device)
 
     def loss_fn(self, labels: torch.Tensor) -> LossFn:
-        return lambda images: F.cross_entropy(self.model(images), labels)
+        return lambda images: F.cross_entropy(self.model(images), labels, reduction="none")
 
     @torch.no_grad()
     def predict(self, images: torch.Tensor) -> torch.Tensor:
@@ -102,3 +113,30 @@ class ResNetBenchmark:
             for eps in epsilons
         ]
         return RobustnessCurve(attack_name, epsilons, accuracies)
+
+    def query_curve(
+        self,
+        epsilon: float,
+        images: torch.Tensor,
+        labels: torch.Tensor,
+        n_queries: int = 1000,
+        num_points: int = 25,
+        attack_name: str = "square",
+        **attack_kwargs: Any,
+    ) -> QueryCurve:
+        """Run a query-based attack once and record accuracy at log-spaced query counts.
+
+        The attack must accept a ``callback(queries_used, adversarial_images)`` argument.
+        """
+        checkpoints = {int(q) for q in np.unique(np.geomspace(1, n_queries, num_points).round())}
+        queries: list[int] = []
+        accuracies: list[float] = []
+
+        def record(used: int, adversarial: torch.Tensor) -> None:
+            if used in checkpoints:
+                queries.append(used)
+                accuracies.append((self.predict(adversarial) == labels).float().mean().item())
+
+        attack = get_attack(attack_name, epsilon=epsilon, n_queries=n_queries, callback=record, **attack_kwargs)
+        attack(images, self.loss_fn(labels))
+        return QueryCurve(attack_name, epsilon, queries, accuracies)

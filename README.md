@@ -18,12 +18,12 @@
 
 ## Overview
 
-Deep vision models can be fooled by small, carefully chosen changes to their input. Gen-Attack implements the standard gradient-based attacks and measures how much they degrade:
+Deep vision models can be fooled by small, carefully chosen changes to their input. Gen-Attack implements standard white-box attacks (FGSM, PGD), which use the model's gradients, and a black-box attack (Square Attack), which only sees the model's outputs. It measures how much they degrade:
 
-- **ResNet-18**, an ImageNet classifier: accuracy as a function of the perturbation budget ε.
+- **ResNet-18**, an ImageNet classifier: accuracy as a function of the perturbation budget ε and, for the black-box attack, of the number of queries.
 - **DETR**, a transformer-based object detector: how detections change on a single scene.
 
-The attacks are model-agnostic. Each one receives a *loss function* rather than a model, so the same FGSM and PGD code attacks a classifier through cross-entropy and a detector through DETR's Hungarian-matched set loss. Test scenes can be generated with **Stable Diffusion** and labelled with **Grounding DINO**, which removes the need for a hand-annotated dataset.
+The attacks are model-agnostic. Each one receives a *loss function* rather than a model, so the same attack code attacks a classifier through cross-entropy and a detector through DETR's Hungarian-matched set loss. Test scenes can be generated with **Stable Diffusion** and labelled with **Grounding DINO**, which removes the need for a hand-annotated dataset.
 
 ## Results
 
@@ -46,6 +46,19 @@ Under both attacks an undefended ResNet-18 drops to 0% accuracy at ε = 1/255, w
 
 *Top: clean predictions. Middle: predictions after PGD with ε = 1/255. Bottom: the perturbation, amplified to be visible. Green means correct and red means wrong.*
 
+### Black-box attack: Square Attack on ResNet-18
+
+<p align="center">
+  <img src="assets/results/resnet_square_queries.png" alt="Accuracy versus number of queries for Square Attack at two budgets" width="560">
+</p>
+
+| ε | PGD (white-box) | Square, 100 queries | Square, 1,000 queries |
+|---|---|---|---|
+| 4/255 | 0% | 69% | 31% |
+| 8/255 | 0% | 50% | 12% |
+
+Square Attack never looks at gradients; it only asks the model for its loss on candidate images, as an attacker with API access could. That is enough to bring accuracy from 94% to 12% within 1,000 queries per image. It needs a much larger budget than PGD to get there, which is the price of not having access to the model's internals.
+
 ### Object detection: DETR (ResNet-50)
 
 <p align="center">
@@ -62,8 +75,9 @@ The detector has no ground-truth labels to attack against, so its own confident 
 |---|---|---|
 | **FGSM** | $x_{adv} = \text{clip}_{[0,1]}\big(x + \epsilon \cdot \text{sign}(\nabla_x \mathcal{L}(x))\big)$ | [Goodfellow et al., 2015](https://arxiv.org/abs/1412.6572) |
 | **PGD** | $x_{t+1} = \Pi_{\lVert x' - x \rVert_\infty \le \epsilon}\big(x_t + \alpha \cdot \text{sign}(\nabla_x \mathcal{L}(x_t))\big)$, random start | [Madry et al., 2018](https://arxiv.org/abs/1706.06083) |
+| **Square Attack** | Random search without gradients: set a random square of the perturbation to new random values of $\pm\epsilon$, and keep the change only if the loss increases. Squares shrink as the query budget is used up. | [Andriushchenko et al., 2020](https://arxiv.org/abs/1912.00049) |
 
-Both attacks are untargeted and bounded in L∞. All epsilons are in [0, 1] pixel units. Each model normalises its input internally, so a perturbation of ε means exactly ε change in the image a person would see.
+All attacks are untargeted and bounded in L∞. All epsilons are in [0, 1] pixel units. Each model normalises its input internally, so a perturbation of ε means exactly ε change in the image a person would see.
 
 ## Quickstart
 
@@ -78,6 +92,7 @@ Reproduce the figures above (each run takes about a minute on a laptop CPU, and 
 ```bash
 gen-attack classify                                    # ResNet-18 robustness curve, FGSM and PGD
 gen-attack detect --image assets/examples/bench.png    # DETR before and after PGD
+gen-attack blackbox                                    # Square Attack: accuracy vs. queries
 gen-attack detect --attack fgsm --epsilon 0.01         # choose the attack and the budget
 ```
 
@@ -120,14 +135,14 @@ flowchart LR
     SD["Stable Diffusion<br/>(generate scenes)"] --> IMG[Images in 0–1]
     DS[ImageNet samples] --> IMG
     IMG --> BM["Benchmark<br/>ResNetBenchmark · DETRBenchmark"]
-    BM -- "loss_fn(images)" --> ATK["Attack<br/>FGSM · PGD"]
+    BM -- "loss_fn(images)" --> ATK["Attack<br/>FGSM · PGD · Square"]
     ATK -- adversarial images --> BM
     BM --> VIS["visualize<br/>curves · grids · boxes"]
 ```
 
 ```
 src/gen_attack/
-├── attacks/        Attack base class, FGSM, PGD, and a name → class registry
+├── attacks/        Attack base class, FGSM, PGD, Square Attack, and a name → class registry
 ├── models/         ResNetBenchmark (classification), DETRBenchmark (detection)
 ├── generation/     Stable Diffusion generator, Grounding DINO open-vocabulary detector
 ├── visualize.py    Result figures
@@ -164,10 +179,12 @@ pre-commit install           # run the same checks on every commit
 ## Roadmap
 
 - [x] FGSM and PGD attacks with a shared, model-agnostic interface
+- [x] Square Attack, a gradient-free black-box attack
 - [x] Classification (ResNet-18) and detection (DETR) benchmarks
 - [x] Scene generation with Stable Diffusion and labelling with Grounding DINO
 - [ ] Attack Grounding DINO directly (open-vocabulary detection)
 - [ ] More attacks: Carlini & Wagner, MI-FGSM, and the AutoAttack ensemble
+- [ ] Evaluate Square Attack on DETR at scale (it already runs with `gen-attack detect --attack square`)
 - [ ] A detection metric (mAP under attack) computed over a generated dataset
 - [ ] Adversarial training as a baseline defence
 

@@ -1,4 +1,4 @@
-"""Command-line interface: ``gen-attack {classify,detect,generate}``."""
+"""Command-line interface: ``gen-attack {classify,blackbox,detect,generate}``."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from gen_attack.utils import seed_everything
 def _attack_kwargs(name: str, args: argparse.Namespace) -> dict[str, Any]:
     if name == "pgd":
         return {"steps": args.pgd_steps, "seed": args.seed}
+    if name == "square":
+        return {"n_queries": args.square_queries, "seed": args.seed}
     return {}
 
 
@@ -58,6 +60,37 @@ def run_classify(args: argparse.Namespace) -> None:
     print(f"Saved {path}")
 
 
+def run_blackbox(args: argparse.Namespace) -> None:
+    from gen_attack.models import ResNetBenchmark
+    from gen_attack.visualize import plot_query_curves
+
+    benchmark = ResNetBenchmark(device=args.device)
+    images, labels = benchmark.load_samples(args.samples)
+    clean_accuracy = (benchmark.predict(images) == labels).float().mean().item()
+    print(f"ResNet-18 on {len(images)} ImageNet images, device={benchmark.device}")
+    print(f"Clean accuracy: {clean_accuracy:.1%}\n")
+
+    curves, white_box = [], {}
+    for epsilon in args.epsilons:
+        pgd = get_attack("pgd", epsilon=epsilon, **_attack_kwargs("pgd", args))
+        white_box[epsilon] = benchmark.evaluate(pgd, images, labels).accuracy
+        curve = benchmark.query_curve(epsilon, images, labels, n_queries=args.square_queries, seed=args.seed)
+        curves.append(curve)
+        print(
+            f"ε = {epsilon * 255:g}/255  PGD (white-box): {white_box[epsilon]:.0%}  "
+            f"Square (black-box): {curve.accuracies[-1]:.0%} after {curve.queries[-1]} queries"
+        )
+
+    path = plot_query_curves(
+        curves,
+        Path(args.output) / "resnet_square_queries.png",
+        clean_accuracy=clean_accuracy,
+        white_box=white_box,
+        title="ResNet-18 under Square Attack (black-box)",
+    )
+    print(f"\nSaved {path}")
+
+
 def run_detect(args: argparse.Namespace) -> None:
     from PIL import Image
 
@@ -91,6 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--seed", type=int, default=0, help="random seed (default: 0)")
     attack_opts = argparse.ArgumentParser(add_help=False)
     attack_opts.add_argument("--pgd-steps", type=int, default=10, help="PGD iterations (default: 10)")
+    attack_opts.add_argument(
+        "--square-queries", type=int, default=1000, help="Square Attack queries per image (default: 1000)"
+    )
     attack_opts.add_argument("--output", default="results", help="output directory (default: results)")
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -98,12 +134,21 @@ def build_parser() -> argparse.ArgumentParser:
     classify = sub.add_parser(
         "classify", parents=[common, attack_opts], help="robustness curve of ResNet-18 on ImageNet samples"
     )
-    classify.add_argument("--attacks", nargs="+", choices=available_attacks(), default=available_attacks())
+    classify.add_argument("--attacks", nargs="+", choices=available_attacks(), default=["fgsm", "pgd"])
     classify.add_argument("--eps-max", type=float, default=1 / 255, help="largest epsilon, in [0, 1] units")
     classify.add_argument("--num-eps", type=int, default=11, help="number of epsilons in the sweep")
     classify.add_argument("--example-eps", type=float, default=1 / 255, help="epsilon for the example grid")
     classify.add_argument("--samples", type=int, default=16, help="number of ImageNet samples (max 20)")
     classify.set_defaults(func=run_classify)
+
+    blackbox = sub.add_parser(
+        "blackbox", parents=[common, attack_opts], help="ResNet-18 accuracy vs. queries under Square Attack"
+    )
+    blackbox.add_argument(
+        "--epsilons", nargs="+", type=float, default=[4 / 255, 8 / 255], help="budgets to compare, in [0, 1] units"
+    )
+    blackbox.add_argument("--samples", type=int, default=16, help="number of ImageNet samples (max 20)")
+    blackbox.set_defaults(func=run_blackbox)
 
     detect = sub.add_parser("detect", parents=[common, attack_opts], help="attack DETR on a single image")
     detect.add_argument("--image", default="assets/examples/bench.png")

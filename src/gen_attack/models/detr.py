@@ -104,7 +104,7 @@ class DETRBenchmark:
         return [{"class_labels": classes[keep], "boxes": outputs.pred_boxes[0, keep]}]
 
     def loss_fn(self, labels: list[dict[str, torch.Tensor]]) -> LossFn:
-        return lambda images: self._forward(images, labels).loss
+        return lambda images: self._forward(images, labels).loss.reshape(1)
 
     def attack(self, image: Image.Image, attack: Attack) -> DetectionAttackResult:
         clean = self.prepare(image)

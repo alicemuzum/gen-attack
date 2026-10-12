@@ -15,7 +15,7 @@ import torch  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 
 from gen_attack.models.detr import DetectionAttackResult, Detections  # noqa: E402
-from gen_attack.models.resnet import RobustnessCurve  # noqa: E402
+from gen_attack.models.resnet import QueryCurve, RobustnessCurve  # noqa: E402
 from gen_attack.utils import to_hwc_numpy  # noqa: E402
 
 PathLike = Union[str, Path]
@@ -51,6 +51,49 @@ def plot_robustness_curves(curves: Sequence[RobustnessCurve], path: PathLike, ti
     ax.set_title(title or "Accuracy under attack")
     ax.grid(alpha=0.3)
     ax.legend()
+    ax.spines[["top", "right"]].set_visible(False)
+    return _save(fig, path)
+
+
+def plot_query_curves(
+    curves: Sequence[QueryCurve],
+    path: PathLike,
+    clean_accuracy: float | None = None,
+    white_box: dict[float, float] | None = None,
+    title: str | None = None,
+) -> Path:
+    """Plot black-box accuracy against queries per image, one line per epsilon.
+
+    ``white_box`` maps each epsilon to the accuracy a white-box attack reaches at that budget,
+    drawn as a dashed reference line. Budgets with the same accuracy share one line.
+    """
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    for curve in curves:
+        ax.plot(
+            curve.queries,
+            [acc * 100 for acc in curve.accuracies],
+            marker="o",
+            markersize=3,
+            linewidth=2,
+            label=f"{curve.attack.capitalize()}, ε = {curve.epsilon * 255:g}/255",
+        )
+    budgets_by_accuracy: dict[float, list[float]] = {}
+    for epsilon, accuracy in (white_box or {}).items():
+        budgets_by_accuracy.setdefault(accuracy, []).append(epsilon)
+    for accuracy, epsilons in budgets_by_accuracy.items():
+        budgets = ", ".join(f"{eps * 255:g}/255" for eps in sorted(epsilons))
+        ax.axhline(
+            accuracy * 100, color="black", linestyle="--", linewidth=1.2, label=f"PGD (white-box), ε = {budgets}"
+        )
+    if clean_accuracy is not None:
+        ax.axhline(clean_accuracy * 100, color="gray", linestyle=":", linewidth=1.2, label="No attack")
+    ax.set_xscale("log")
+    ax.set_xlabel("Queries per image (log scale)")
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_ylim(-3, 103)
+    ax.set_title(title or "Black-box attack: accuracy vs. queries")
+    ax.grid(alpha=0.3, which="both")
+    ax.legend(fontsize=9)
     ax.spines[["top", "right"]].set_visible(False)
     return _save(fig, path)
 
