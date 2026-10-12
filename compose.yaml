@@ -1,0 +1,32 @@
+# Usage:
+#   docker compose run --rm cpu classify
+#   docker compose run --rm gpu detect --attack pgd
+# Results are written to ./results on the host.
+
+x-common: &common
+  volumes:
+    - ./results:/gen_attack/results
+    - hf-cache:/root/.cache
+
+services:
+  cpu:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  gpu:
+    <<: *common
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  hf-cache:
